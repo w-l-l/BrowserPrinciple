@@ -9,3 +9,4 @@
 - [HTTP请求流程：为什么很多站点第二次打开速度会很快](./宏观视角上的浏览器/HTTP请求流程：为什么很多站点第二次打开速度会很快/index.md)
 - [导航流程：从输入URL到页面展示这中间发生了什么](./宏观视角上的浏览器/导航流程：从输入URL到页面展示这中间发生了什么/index.md)
 - [渲染流程（上）：HTML、CSS和JavaScript是如何变成页面的](./宏观视角上的浏览器/渲染流程（上）：HTML、CSS和JavaScript是如何变成页面的/index.md)
+- [渲染流程（下）：HTML、CSS和JavaScript是如何变成页面的](./宏观视角上的浏览器/渲染流程（下）：HTML、CSS和JavaScript是如何变成页面的/index.md)
