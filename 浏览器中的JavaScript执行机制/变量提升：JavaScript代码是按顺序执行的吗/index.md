@@ -58,3 +58,75 @@ function showName() {
 - 变量和函数为什么能在其定义之前使用？这似乎表明 JavaScript 代码并不是一行一行执行的。
 
 - 同样的方式，变量和函数的处理结果为什么不一样？比如上面的执行结果，提前使用的 showName 函数能打印出来完整结果，但是提前使用的 myname 变量值却是 undefined，而不是定义时使用的“极客时间”这个值。
+
+## 变量提升（hoisting）
+
+要解释这两个问题，你就需要先了解下什么是变量提升。
+
+不过在介绍变量提升之前，我们先通过下面这段代码，来看看什么是 JavaScript 中的声明和赋值。
+
+```js
+var myname = '极客时间'
+```
+
+这段代码你可以把它看成是两行代码组成的：
+
+```js
+var myname  // 声明部分
+myname = '极客时间' // 赋值部分
+```
+
+![声明和赋值](./img/statement-and-assignment.png)
+
+上面是变量的声明和赋值，那接下来我们再来看看函数的声明和赋值，结合下面这段代码：
+
+```js
+function foo() {
+  console.log('foo')
+}
+
+var bar = function() {
+  console.log('bar')
+}
+```
+
+第一个函数 foo 是一个完整的函数声明，也就是说没有涉及到赋值操作；第二个函数是先声明变量 bar，再把 `function() {console.log('bar')}` 赋值给 bar。为了直观理解，你可以参考下图：
+
+![函数声明](./img/function-statement.png)
+
+好了，理解了声明和赋值操作，那接下来我们就可以聊聊什么是变量提升了。
+
+**所谓的变量提升，是指在 JavaScript 代码执行过程中，JavaScript 引擎把变量的声明部分和函数的声明部分提升到代码开头的“行为”。变量被提升后，会给变量设置默认值，这个默认值就是我们熟悉的 undefined。**
+
+下面我们来模拟下实现：
+
+```js
+/* 变量提升部分 */
+// 把变量 myname 提升到开头
+// 同时给 myname 赋值为 undefined
+var myname = undefined
+// 把函数 showName 提升到开头
+function showName() {
+  console.log('showName被调用')
+}
+
+/* 可执行代码部分 */
+showName()
+console.log(myname)
+// 去掉var声明部分，保留赋值语句
+myname = '极客时间'
+```
+
+为了模拟变量提升的效果，我们对代码做了以下调整，如下图：
+
+![模拟变量提升](./img/simulation-variable-promote.png)
+
+从图中可以看出，对原来的代码主要做了两处调整：
+
+- 第一处是把声明的部分都提升到了代码开头，如变量 `myname` 和函数 `showName`，并给变量设置默认值 `undefined`。
+
+- 第二处是移除原本声明的变量和函数，如 `var myname = '极客时间'` 的语句，移除了 `var` 声明，整个移除 `showName` 的函数声明。
+
+- 通过这两步，就可以实现变量提升的效果。你也可以执行这段模拟变量提升的代码，其输出结果和第一段代码应该是完全一样的。
+
+通过这段模拟的变量提升代码，相信你已经明白了可以在定义之前使用变量或者函数的原因——函数和变量在执行之前都提升到了代码开头。
