@@ -261,3 +261,40 @@ showName()
 - 以上就是今天所讲的主要内容，当然，学习这些内容并不是让你掌握一些 JavaScript 小技巧，其主要目的是让你清楚 JavaScript 的执行机制：**先编译，再执行**。
 
 如果你了解了 JavaScript 执行流程，那么在编写代码时，你就能避开一些陷阱；在分析代码过程中，也能通过分析 JavaScript 的执行过程来定位问题。
+
+## 思考时间
+
+最后，看下面这段代码：
+
+```js
+showName()
+var showName = function() {
+  console.log(2)
+}
+function showName() {
+  console.log(1)
+}
+```
+
+你能按照 JavaScript 的执行流程，来分析最终输出结果吗？
+
+分析
+
+```js
+输出1
+```
+
+编译阶段：
+
+```js
+var showName
+function showName() {console.log(1)}
+```
+
+执行阶段
+
+```js
+showName() // 输出1
+showName = function() {console.log(2)}
+// 如果后面再有 showName 执行的话，就输出2，因为这时候函数引用已经变了
+```
