@@ -250,3 +250,41 @@ foo()
 如果站在语言层面来谈，每种语言其实都是在相互借鉴对方的优势，协同进化，比如 JavaScript 引进了作用域、迭代器和协程，其底层虚拟机的实现和 Java、Python 又是非常相似，也就是说如果你理解了 JavaScript 协程和 JavaScript 的虚拟机，其实你也就理解了 Java、Python 中的协程和虚拟机的实现机制。
 
 所以说，语言本身好坏不重要，重要的是能为开发者创造价值。
+
+## 思考时间
+
+下面给你留个思考题，看下面这样一段代码：
+
+```js
+let myname= '极客时间'
+{
+  console.log(myname) 
+  let myname= '极客邦'
+}
+```
+
+你能通过分析词法环境，得出来最终的打印结果吗？
+
+**分析**
+
+1. 在块级作用域中，从 `开始到let myname = '极客邦'` 代码之间形成了一个暂时性死区，如果中间去访问变量 `myname`，会报初始化之前不能访问 `myname` 的错误。`Uncaught ReferenceError`。
+
+2. 另外上面的一个 foo 函数也会报 d 没有定义，d 在块级作用域中声明，在外面是访问不到的。
+
+```js
+function foo() {
+  var a = 1
+  let b = 2
+  {
+    let b = 3
+    var c = 4
+    let d = 5
+    console.log(a)
+    console.log(b)
+  }
+  console.log(b)
+  console.log(c)
+  console.log(d)
+}
+foo()
+```
