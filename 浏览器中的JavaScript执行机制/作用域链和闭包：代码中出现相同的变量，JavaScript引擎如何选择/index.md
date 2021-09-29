@@ -106,3 +106,63 @@ foo()
 下面我就来解释下这个过程。首先是在 bar 函数的执行上下文中查找，但因为 bar 函数的执行上下文中没有定义 test 变量，所以根据词法作用域的规则，下一步就在 bar 函数的外部作用域中查找，也就是全局作用域。
 
 至于单个执行上下文中如何查找变量，我在上一篇文章中已经做了介绍，这里就不重复了。
+
+## 闭包
+
+了解了作用域链，接着我们就可以来聊聊闭包了。关于闭包，理解起来可能会是一道坎，特别是在你不熟悉 JavaScript 这门语言的时候，接触闭包很可能会让你产生一些挫败感，因为你很难通过理解背后的原理来彻底理解闭包，从而导致学习过程中似乎总是似懂非懂。最要命的是，JavaScript 代码中还总是充斥着大量的闭包代码。
+
+但理解了变量环境、词法环境和作用域链等概念，那接下来你再理解什么是 JavaScript 中的闭包就容易多了。这里你可以结合下面这段代码来理解什么是闭包：
+
+```js
+function foo() {
+  var myName = '极客时间'
+  let test1 = 1
+  const test2 = 2
+  var innerBar = {
+    getName: function() {
+      console.log(test1)
+      return myName
+    },
+    setName: function(newName) {
+      myName = newName
+    }
+  }
+  return innerBar
+}
+var bar = foo()
+bar.setName('极客邦')
+bar.getName()
+console.log(bar.getName())
+```
+
+首先我们看看当执行到 foo 函数内部的 return innerBar 这行代码时调用栈的情况，你可以参考下图：
+
+![foo调用栈](./img/foo-call-stack.png)
+
+从上面的代码可以看出，innerBar 是一个对象，包含了 getName 和 setName 的两个方法（通常我们把对象内部的函数称为方法）。你可以看到，这两个方法都是在 foo 函数内部定义的，并且这两个方法内部都使用了 myName 和 test1 两个变量。
+
+根据词法作用域的规则，内部函数 getName 和 setName 总是可以访问它们的外部函数 foo 中的变量，所以当 innerBar 对象返回给全局变量 bar 时，虽然 foo 函数已经执行结束，但是 getName 和 setName 函数依然可以使用 foo 函数中的变量 myName 和 test1。所以当 foo 函数执行完成之后，其整个调用栈的状态如下图所示：
+
+![foo执行完的调用栈](./img/foo-execute-call-stack.png)
+
+从上图可以看出，foo 函数执行完成之后，其执行上下文从栈顶弹出了，但是由于返回的 setName 和 getName 方法中使用了 foo 函数内部的变量 myName 和 test1，所以这两个变量依然保存在内存中。这像极了 setName 和 getName 方法背的一个专属背包，无论在哪里调用了 setName 和 getName 方法，它们都会背着这个 foo 函数的的专属背包。
+
+之所以是专属背包，是因为除了 setName 个 getName 函数之外，其他任何地方都是无法访问该背包的，我们就可以把这个背包称为 foo 函数的闭包。
+
+好了，现在我们终于可以给闭包一个正式的定义了。在 JavaScript 中，根据词法作用域的规则，内部函数总是可以访问其外部函数中声明的变量，当通过调用一个外部函数返回一个内部函数后，即使该外部函数已经执行结束了，但是内部函数引用外部函数的变量依然保存在内存中，我们就把这些变量的集合称为闭包。比如外部函数是 foo，那么这些变量的集合就称为 foo 函数的闭包。
+
+那这些闭包是如何使用的呢？当执行到 bar.setName 方法中的 `myName = '极客邦'` 这句代码时，JavaScript 引擎会沿着“当前执行上下文 --> foo 函数闭包 --> 全局执行上下文”的顺序来查找 myName 变量，你可以参考下面的调用栈状态图：
+
+![setName的调用栈](./img/setName-call-stack.png)
+
+从图中可以看出，setName 的执行上下文没有 myName 变量，foo 函数的闭包中包含了变量 myName，所以调用 setName 时，会修改 foo 闭包中的 myName 变量的值。
+
+同样的流程，当调用 bar.getName 的时候，所访问的变量 myName 也是位于 foo 函数闭包中的。
+
+你也可以通过“开发者工具”来看看闭包的情况，打开 Chrome 的“开发者工具”，在 bar 函数任意地方打上断点，然后刷新页面，可以看到如下内容：
+
+![Chrome调试工具](./img/chrome-tool-closure.png)
+
+从图中可以看出来，当调用 bar.getName 的时候，右边 Scope 项就体现出了作用域链的情况：Local 就是当前的 getName 函数的作用域，Closure(foo) 是指 foo 函数的闭包，最下面的 Global 就是指全局作用域，从“Local --> Closure(foo) --> Global”就是一个完整的作用域链。
+
+所以说，你以后也可以通过 Scope 来查看实际代码作用域链的情况，这样调试代码也会比较方便。
