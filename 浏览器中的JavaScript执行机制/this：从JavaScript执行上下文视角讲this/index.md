@@ -184,3 +184,85 @@ return tempObj
 ```
 
 这样，我们就通过 new 关键字构建好了一个新对象，并且构造函数中的 this 其实就是新对象本身。
+
+## this的设计缺陷以及应对方案
+
+就我个人而言，this 并不是一个很好的设计，因为它的很多使用方法都冲击人的直觉，在使用过程中存在着非常多的坑。下面咱们就来一起看看那些 this 设计缺陷。
+
+### 1.嵌套函数中的this不会从外层函数中继承
+
+我认为这是一个严重的设计错误，并影响了后来的很多开发者，让他们“前赴后继”迷失在该错误中。我们还是结合下面这样一段代码来分析下：
+
+```js
+var myObj = {
+  name: '极客时间', 
+  showThis: function() {
+    console.log(this)
+    function bar() {
+      console.log(this)
+    }
+    bar()
+  }
+}
+myObj.showThis()
+```
+
+我们在这段代码的 showThis 方法里面添加了一个 bar 方法，然后接着在 showThis 函数中调用了 bar 函数，那么现在的问题是：bar 函数中的 this 是什么？
+
+如果你刚接触 JavaScript，那么你可能会很自然地觉得，bar 中的 this 应该和其外层 showThis 函数中的 this 是一致的，都是指向 myObj 对象的，这很符合人的直觉。但实际情况却并非如此，执行这段代码后，你会发现函数 bar 中的 this 指向的是全局 window 对象，而函数 showThis 中的 this 指向的是 myObj 对象。这就是JavaScript 中非常容易让人迷惑的地方之一，也是很多问题的源头。
+
+你可以通过一个小技巧来解决这个问题，比如在 showThis 函数中声明一个变量 self 用来保存 this，然后在 bar 函数中使用 self，代码如下所示：
+
+```js
+var myObj = {
+  name: '极客时间', 
+  showThis: function() {
+    console.log(this)
+    var self = this
+    function bar() {
+      self.name = '极客邦'
+    }
+    bar()
+  }
+}
+myObj.showThis()
+console.log(myObj.name)
+console.log(window.name)
+```
+
+执行这段代码，你可以看到它输出了我们想要的结果，最终 myObj 中的 name 属性值变成了"极客邦"。其实，这个方法的本质是把 this 体系转换为了作用域的体系。
+
+其实，你也可以使用 ES6 中的箭头函数来解决这个问题，结合下面代码：
+
+```js
+var myObj = {
+  name: '极客时间', 
+  showThis: function() {
+    console.log(this)
+    var bar = () => {
+      this.name = '极客邦'
+      console.log(this)
+    }
+    bar()
+  }
+}
+myObj.showThis()
+console.log(myObj.name)
+console.log(window.name)
+```
+
+执行这段代码，你会发现它也输出了我们想要的结果，也就是箭头函数 bar 里面的 this 是指向 myObj 对象的。这是因为 ES6 中的箭头函数并不会创建其自身的执行上下文，所以箭头函数中的 this 取决于它的外部函数。
+
+通过上面的讲解，你现在应该知道了 this 没有作用域的限制，这点和变量不一样，所以嵌套函数不会从调用它的函数中继承 this，这样会造成很多不符合直觉的代码。要解决这个问题，你可以有两种思路：
+
+- 第一种是把 this 保存为一个 self 变量，再利用变量的作用域机制传递给嵌套函数。
+
+- 第二种是继续使用 this，但是要把嵌套函数改为嵌套函数，因为箭头函数没有自己的执行上下文，所以它会继承调用函数中的 this。
+
+### 2.普通函数中的this默认指向全局对象window
+
+上面我们已经介绍过了，在默认情况下调用一个函数，其执行上下文中的 this 是默认指向全局对象 window 的。
+
+不过这个设计也是一种缺陷，因为在实际工作中，我们并不希望函数执行上下文中的 this 默认指向全局对象，因为这样会打破数据的边界，造成一些误操作。如果要让函数执行上下文中的 this 指向某个对象，最好的方式是通过 call 方法来显示调用。
+
+这个问题可以通过设置 JavaScript 的 `严格模式` 来解决。在严格模式下，默认执行一个函数，其函数的执行上下文中的 this 值是 undefined，这就解决上面的问题了。
