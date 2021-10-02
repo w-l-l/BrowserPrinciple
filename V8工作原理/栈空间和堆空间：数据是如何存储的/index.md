@@ -71,3 +71,64 @@ c = a
 对于各种语言的类型，你可以参考下图：
 
 ![语言类型](./img/language-type.png)
+
+## JavaScript的数据类型
+
+现在我们知道了，JavaScript 是一种弱类型的、动态的语言。那这些特点意味着什么呢？
+
+- **弱类型**，意味着你不需要告诉 JavaScript 引擎这个或那个变量是什么数据类型，JavaScript 引擎在运行代码的时候自己会计算出来。
+
+- **动态**，意味着你可以使用同一个变量保存不同类型的数据。
+
+那么接下来，我们再来看看 JavaScript 的数据类型，你可以看下面这段代码：
+
+```js
+var bar
+bar = 12 
+bar = '极客时间'
+bar = true
+bar = null
+bar = { name: '极客时间' }
+```
+
+从上述代码中你可以看出，我们声明了一个 bar 变量，然后可以使用各种类型的数据值赋予给该变量。
+
+在 JavaScript 中，如果你想要查看一个变量到底是什么类型，可以使用 `typeof` 运算符。具体使用方式如下所示：
+
+```js
+var bar
+console.log(typeof bar) // undefined
+bar = 12 
+console.log(typeof bar) // number
+bar = '极客时间'
+console.log(typeof bar) // string
+bar = true
+console.log(typeof bar) // boolean
+bar = null
+console.log(typeof bar) // object
+bar = { name: '极客时间' }
+console.log(typeof bar) // object
+```
+
+执行这段代码，你可以看到打印出来了不同的数据类型，有 undefined、number、boolean、object 等。那么接下来我们就来谈谈 JavaScript 到底有多少种数据类型。
+
+其实 JavaScript 中的数据类型一共有 8 种，它们分别是：
+
+![JavaScript的数据类型](./img/javascript-data-type.png)
+
+了解这些类型之后，还有三点需要你注意一下。
+
+- 第一点，使用 typeof 检测 Null 类型时，返回的是 Object。这是当初 JavaScript 语言的一个 Bug，一直保留至今，之所以一直没修改过来，主要是为了兼容老的代码。
+
+- 第二点，Object 类型比较特殊，它是由上述 7 种类型组成的一个包含了 key-value 对的数据类型。如下所示：
+
+```js
+let myObj = {
+  name: '极客时间',
+  update: function() {....}
+}
+```
+
+从中你可以看出来，Object 是由 key-value 组成的，其中的 value 可以是任何类型，包括函数，这也就意味着你可以通过 Object 来存储数据，Object 中的函数有称为方法，比如上述代码中的 update 方法。
+
+- 第三点，我们把前面的 7 种数据类型称为原始类型，把最后一个对象类型称为引用类型，之所以把它们区分为两种不同的类型，是因为它们在内存中存放的位置不一样。到底怎么个不一样法呢？接下来，我们就来讲解一下 JavaScript 的原始类型和引用类型到底是怎么储存的。
