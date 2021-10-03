@@ -248,3 +248,51 @@ console.log(bar.getName())
 然后我们分析了，在 JavaScript 中将一个原始类型的变量 a 赋值给 b，那么 a 和 b 会相互独立、互补影响；但是将引用类型的变量 a 赋值给变量 b，那会导致 a、b 两个变量都同时指向了堆中的同一块数据。
 
 最后，我们还站在内存模型的视角分析了闭包的产生过程。
+
+## 思考时间
+
+在实际的项目中，经常需要完整地拷贝一个对象，也就是说拷贝完成之后两个对象之间就不能互相影响。那该如何实现呢？
+
+结合下面这段代码，你可以分析下它是如何将对象 jack 拷贝给 jack2，然后在完成拷贝操作时两个 jack 还互不影响的呢。
+
+```js
+let jack = {
+  name: 'jack.ma',
+  age: 40,
+  like: {
+    dog: {
+      color: 'black',
+      age: 3,
+    },
+    cat: {
+      color: 'white',
+      age: 2
+    }
+  }
+}
+function copy(src) {
+  let dest
+  // 实现拷贝代码，将 src 的值完整地拷贝给 dest
+  // 在这里实现
+  return dest
+}
+let jack2 = copy(jack)
+ 
+// 比如修改 jack2 中的内容，不会影响到 jack 中的值
+jack2.like.dog.color = 'green'
+console.log(jack.like.dog.color) // 打印出来的应该是 'black'
+```
+
+关于 foo 函数执行上下文销毁过程：foo 函数执行结束之后，当前执行状态的指针下移到栈中的全局执行上下文的位置，foo 函数的执行上下文的那块数据就挪出来，这也就是 foo 函数执行上下文的销毁过程，这个文中有提到，你可以参考"调用栈中切换执行上下文状态"图。
+
+第二个问题：innerBar 返回后，含有 setName 和 getName 对象，这两个对象里面包含了堆中的 closure(foo) 的引用。虽然 foo 执行上下文销毁了，foo 函数中的对 closure(foo) 的引用也断开了，但是 setName 和 getName 里面又重新建立起来了对象 closure(foo) 引用。
+
+你可以：
+
+- 打开“开发者工具”。
+
+- 在控制台执行上述代码。
+
+- 然后选择“Memory”标签，点击“take snapshot”获取 V8 的堆内存快照。
+
+- 然后“command + f”（mac）或者“ctrl + f”（win），搜索 setName，然后你就会发现 setName 对象下面包含了 `raw_outer_scope_info_or_feedback_metadata`，对闭包的引用数据就在这里面。
