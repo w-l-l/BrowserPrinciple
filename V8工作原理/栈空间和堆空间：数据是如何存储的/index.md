@@ -186,3 +186,53 @@ foo()
 ![赋值引用地址](./img/assign-quote-site.png)
 
 从图中你可以看到，变量 c 和变量 d 都指向了同一个堆中的对象，所以这就很好地解释了文章开头的那个问题，通过 c 修改 name 的值，变量 d 的值也跟着改变，归根结底它们是同一个对象。
+
+## 再谈闭包
+
+现在你知道了作用域内的原始类型数据会被存储到栈空间，引用类型会被存储到堆空间，基于这两点的认知，我们再深入一步，探讨下闭包的内存模型。
+
+```js
+function foo() {
+  var myName = '极客时间'
+  let test1 = 1
+  const test2 = 2
+  var innerBar = { 
+    setName: function(newName) {
+      myName = newName
+    },
+    getName: function() {
+      console.log(test1)
+      return myName
+    }
+  }
+  return innerBar
+}
+var bar = foo()
+bar.setName('极客邦')
+bar.getName()
+console.log(bar.getName())
+```
+
+当执行这段代码的时候，你应该有过这样的分析：由于变量 myName、test1、test2 都是原始类型数据，所以在执行 foo 函数的时候，它们会被压入到调用栈中；当 foo 函数执行结束之后，调用栈中 foo 函数的执行上下文会被销毁，其内部变量 myName、test1、test2 也应该一同被销毁。
+
+要解释这个现象，我们就得站在内存模型的角度来分析这段代码的执行流程。
+
+- 当 JavaScript 引擎执行到 foo 函数时，首先会编译，并创建一个空执行上下文。
+
+- 在编译过程中，遇到内部函数 setName，JavaScript 引擎还要对内部函数做一次快速的词法扫描，发现该内部函数引用了 foo 函数中的 myName 变量，由于是内部函数引用了外部函数的变量，所以 JavaScript 引擎判断这是一个闭包，于是在堆空间创建了一个 `closure(foo)` 的对象（这是一个内部对象，JavaScript 是无法访问的），用来保存 myName 变量。
+
+- 接着继续扫描到 getName 方法时，发现该函数内部还引用变量 test1，于是 JavaScript 引擎又将 test1 添加到 `closure(foo)` 对象中。这时候堆中的 `closure(foo)` 对象中就包含了 myName 和 test1 两个变量了。
+
+- 由于 test2 并没有被内部函数引用，所以 test2 依然保存在调用栈中。
+
+通过上面的分析，我们可以画出执行到 foo 函数中 return innerBar 语句时的调用栈状态，如下图所示：
+
+![闭包的产生过程](./img/closure-produce-process.png)
+
+从上图你可以清晰地看出，当执行到 foo 函数时，闭包就产生了；当 foo 函数执行结束之后，返回的 getName 和 setName 方法都引用 `closure(foo)` 对象，所以即使 foo 函数退出了，`closure(foo)` 依然被其内部的 getName 和 setName 方法引用。所以在下次调用 bar.setName 或者 bar.getName 时，创建的执行上下文中就包含了 `closure(foo)`。
+
+总的来说，产生闭包的核心有两步：
+
+- 第一步是需要预扫描内部函数。
+
+- 第二步是把内部函数引用的外部变量保存到堆中。
