@@ -153,3 +153,23 @@ task_queue.pushTask(clickTask)
 除此之外，消息队列中还包含了很多与页面相关的事件，如 JavaScript 执行、解析 DOM、样式计算、布局计算、CSS 动画等。
 
 以上这些事件都是在主线程中执行的，所以在编写 Web 应用时，你还需要衡量这些事件所占用的时长，并想办法解决单个任务占用主线程过久的问题。
+
+## 如何安全退出
+
+当页面主线程执行完成之后，又该如何保证页面主线程能够安全退出呢？Chrome 是这样解决的，确定要退出当前页面时，页面主线程会设置一个退出标志的变量，在每次执行完一个任务时，判断是否有设置退出标志。
+
+如果设置了，那么就直接中断当前的所有任务，退出线程，你可以参考下面代码：
+
+```c++
+TaskQueue task_queue;
+void ProcessTask();
+bool keep_running = true;
+void MainThread() {
+  for(;;){
+    Task task = task_queue.takeTask();
+    ProcessTask(task);
+    if(!keep_running) // 如果设置了退出标志，那么直接退出线程循环
+      break; 
+  }
+}
+```
