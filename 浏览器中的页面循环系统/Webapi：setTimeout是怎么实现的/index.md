@@ -14,3 +14,88 @@ var timerID = setTimeout(showName, 200)
 执行上述代码，输出的结果也很明显，通过 setTimeout 指定在 200 毫秒之后调用 showName 函数，并输出“极客时间”四个字。
 
 简单了解了 setTimeout 的使用方法后，那接下来我们就来看看浏览器是如何实现定时器的，然后再介绍下定时器在使用过程中的一些注意事项。
+
+## 浏览器怎么实现 setTimeout
+
+要了解定时器的工作原理，就得先来回顾下之前讲的事件循环系统，我们知道渲染进程中所有运行在主线程上的任务都需要先添加到消息队列，然后事件循环系统再按照顺序执行消息队列中的任务。下面我们来看看那些经典的事件。
+
+- 当接收到 HTML 文档数据，渲染引擎就会将“解析 DOM”事件添加到消息队列中。
+
+- 当用户改变了 Web 页面的窗口大小，渲染引擎就会将“重新布局”的事件添加到消息队列中。
+
+- 当触发了 JavaScript 引擎垃圾回收机制，渲染引擎会将“垃圾回收”任务添加到消息队列中。
+
+- 同样，如果要执行一段异步 JavaScript 代码，也是需要将执行任务添加到消息队列中。
+
+以上列举的只是一小部分事件，这些事件被添加到消息队列之后，事件循环系统就会按照消息队列中的顺序来执行事件。
+
+所以说要执行一段异步任务，需要先将任务添加到消息队列中。不过通过定时器设置回调函数有点特别，它们需要在指定的时间间隔内被调用，但消息队列中的任务是按照顺序执行的，所以为了保证回调函数能在指定时间内执行，你不能将定时器的回调函数直接添加到消息队列中。
+
+那么该怎么设计才能让定时器设置的回调事件在规定时间内被执行呢？你也可以思考下，如果让你在消息循环系统的基础之上加上定时器的功能，你会如何设计？
+
+在 Chrome 中除了正常使用的消息队列之外，还有另外一个消息队列，这个队列中维护了需要延迟执行的任务列表，包括了定时器和 Chrome 内部一些需要延迟执行的任务。所以当通过 JavaScript 创建一个定时器时，渲染进程会将该定时器的回调任务添加到延迟队列中。
+
+源码中延迟执行队列的定义如下所示：
+
+```c++
+DelayedIncomingQueue delayed_incoming_queue;
+```
+
+当通过 JavaScript 调用 setTimeout 设置回调函数的时候，渲染进程将会创建一个回调任务，包含了回调函数 showName、当前发起时间、延迟执行时间，其模拟代码如下所示：
+
+```c++
+struct DelayTask {
+  int64 id;
+  CallBackFunction cbf;
+  int start_time;
+  int delay_time;
+};
+DelayTask timerTask;
+timerTask.cbf = showName;
+timerTask.start_time = getCurrentTime(); // 获取当前时间
+timerTask.delay_time = 200; // 设置延迟执行时间
+```
+
+创建好回调任务之后，再将该任务添加到延迟执行队列中，代码如下所示：
+
+```c++
+delayed_incoming_queue.push(timerTask);
+```
+
+现在通过定时器发起的任务就被保存到延迟队列中了，那接下来我们再来看看消息循环系统是怎么触发延迟执行的。
+
+我们可以来完善上一篇中消息循环的代码，在其中加入执行延迟队列的代码，如下所示：
+
+```c++
+void ProcessTimerTask() {
+  // 从 delayed_incoming_queue 中取出已经到期的定时器任务
+  // 依次执行这些任务
+}
+ 
+TaskQueue task_queue;
+void ProcessTask();
+bool keep_running = true;
+void MainTherad() {
+  for(;;){
+    // 执行消息队列中的任务
+    Task task = task_queue.takeTask();
+    ProcessTask(task);
+    
+    // 执行延迟队列中的任务
+    ProcessDelayTask()
+ 
+    if(!keep_running) // 如果设置了退出标志，那么直接退出线程循环
+      break; 
+  }
+}
+```
+
+从上面代码可以看出，我们添加了一个 ProcessDelayTask 函数，该函数是专门用来处理延迟执行任务的。这里我们要重点关注它的执行时机，在上段代码中，处理完消息队列中的一个任务之后，就开始执行 ProcessDelayTask 函数。ProcessDelayTask 函数会根据发起时间和延迟时间计算出到期的任务，然后依次执行这些到期的任务。等到期的任务执行完成之后，再继续下一个循环过程。通过这样的方式，一个完整的定时器就实现了。
+
+设置一个定时器，JavaScript 引擎会返回一个定时器的 ID。那通常情况下，当一个定时器的任务还没有被执行的时候，也是可以取消的，具体方法是调用 clearTimeout 函数，并传入需要取消的定时器的 ID。如下面代码所示：
+
+```js
+clearTimeout(timer_id)
+```
+
+其实浏览器内部实现取消定时器的操作也是非常简单的，就是直接从 delayed_incoming_queue 延迟队列中，通过 ID 查找到对应的任务，然后再将其从队列中删除掉就可以了。
