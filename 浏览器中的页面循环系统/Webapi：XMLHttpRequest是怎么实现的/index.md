@@ -167,3 +167,72 @@ XMLHttpRequest 的回调函数主要有下面几种：
 - 如果是正常的数据接收，就会执行 onreadystatechange 来反馈相应的状态。
 
 这就是一个完整的 XMLHttpRequest 请求流程，如果你感兴趣，可以参考下 Chromium 对 [XMLHttpRequest的实现](https://chromium.googlesource.com/chromium/src/+/refs/heads/master/third_party/blink/renderer/core/xmlhttprequest/)，点击这里查看代码。
+
+## XMLHttpRequest 使用过程中的“坑”
+
+上述过程看似简单，但由于浏览器很多安全策略的限制，所以会导致你在使用过程中踩到非常多的“坑”。
+
+浏览器安全问题是前端工程师避不开的一道坎，通常在使用过程中遇到的“坑”，很大一部分都是由安全策略引起的，不管你喜不喜欢，它都在这里。本来很完美的一个方案，正是由于加了安全限制，导致使用起来非常麻烦。
+
+而你要做的就是去正视这各种的安全问题。也就是说要想更加完美地使用 XMLHttpRequest，你就要了解浏览器的安全策略。
+
+下面我们就来看看在使用 XMLHttpRequest 的过程中所遇到的跨域问题和混合内容问题。
+
+### 1.跨域问题
+
+比如在极客邦的官网使用 XMLHttpRequest 请求极客时间的页面内容，由于极客邦的官网是 www.geekbang.org，极客时间的官网是 time.geekbang.org，它们不是同一个源，所以就涉及到了跨域（在 A 站点中去访问不同源的 B 站点的内容）。默认情况下，跨域请求是不被允许的，你可以看下面的示例代码：
+
+```js
+var xhr = new XMLHttpRequest()
+var url = 'https://time.geekbang.org/'
+function handler() {
+  switch(xhr.readyState) {
+    case 0: // 请求未初始化
+      console.log('请求未初始化')
+      break
+    case 1: // OPENED
+      console.log('OPENED')
+      break
+    case 2: // HEADERS_RECEIVED
+      console.log('HEADERS_RECEIVED')
+      break
+    case 3: // LOADING  
+      console.log('LOADING')
+      break
+    case 4: // DONE
+      if(this.status == 200 || this.status == 304) {
+        console.log(this.responseText)
+      }
+      console.log('DONE')
+      break
+  }
+}
+function callOtherDomain() {
+  if(xhr) {    
+    xhr.open('GET', url, true)
+    xhr.onreadystatechange = handler
+    xhr.send()
+  }
+}
+callOtherDomain()
+```
+
+你可以在控制台测试下。首先通过浏览器打开 www.geekbang.org，然后打开控制台，在控制台输入以上示例代码，再执行，会看到请求被 break 了。控制台的提示信息如下：
+
+```js
+Access to XMLHttpRequest at 'https://time.geekbang.org/' from origin 'https://www.geekbang.org' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.
+```
+
+因为 www.geekbang.org 和 time.geekbang.com 不属于一个域，所以以上访问就属于跨域访问了，这次访问失败就是由于跨域问题导致的。
+
+### 2.HTTPS 混合内容的问题
+
+了解完跨域问题后，我们再来看看 HTTPS 的混合内容。HTTPS 混合内容是 HTTPS 页面中包含了不符合 HTTPS 安全要求的内容，比如包含了 HTTP 资源，通过 HTTP 加载的图像、视频、样式表、脚本等，都属于混合内容。
+
+通常，如果 HTTPS 请求页面中使用混合内容，浏览器会针对 HTTPS 混合内容显示警告，用来向用户表明此 HTTPS 页面包含不安全的资源。比如打开站点 https://www.iteye.com/groups，可以通过控制台看到混合内容的警告，参考下图：
+
+![HTTPS混合内容警告](./img/https-mixin-warn.png)
+
+从上图可以看出，通过 HTML 文件加载的混合资源，虽然给出警告，但大部分类型还是能加载的。而使用 XMLHttpRequest 请求时，浏览器认为这种请求可能是攻击者发起的，会阻止此类危险的请求。比如我通过浏览器打开地址 https://www.iteye.com/groups，然后通过控制台，使用 XMLHttpRequest 来请求 http://img-ads.csdn.net/2018/201811150919211586.jpg，这时请求就会报错，出错信息如下图所示：
+
+![使用XMLHttpRequest混合资源失效](./img/XMLHttpRequest-mixin-error.png)
