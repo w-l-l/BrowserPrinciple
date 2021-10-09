@@ -29,3 +29,4 @@
 
 - [消息队列和事件循环：页面是怎么活起来的](./浏览器中的页面循环系统/消息队列和事件循环：页面是怎么活起来的/index.md)
 - [Webapi：setTimeout是怎么实现的](./浏览器中的页面循环系统/Webapi：setTimeout是怎么实现的/index.md)
+- [Webapi：XMLHttpRequest是怎么实现的](./浏览器中的页面循环系统/Webapi：XMLHttpRequest是怎么实现的/index.md)
