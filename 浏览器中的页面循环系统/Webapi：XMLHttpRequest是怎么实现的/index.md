@@ -217,7 +217,7 @@ function callOtherDomain() {
 callOtherDomain()
 ```
 
-你可以在控制台测试下。首先通过浏览器打开 www.geekbang.org，然后打开控制台，在控制台输入以上示例代码，再执行，会看到请求被 break 了。控制台的提示信息如下：
+你可以在控制台测试下。首先通过浏览器打开 www.geekbang.org，然后打开控制台，在控制台输入以上示例代码，再执行，会看到请求被 Block 了。控制台的提示信息如下：
 
 ```js
 Access to XMLHttpRequest at 'https://time.geekbang.org/' from origin 'https://www.geekbang.org' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.
