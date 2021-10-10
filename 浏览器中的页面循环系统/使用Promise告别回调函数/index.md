@@ -48,3 +48,65 @@ xhr.send()
 我们执行上面这段代码，可以正常输出结果的。但是，这短短的一段代码里面竟然出现了五次回调，这么多的回调会导致代码的逻辑不连贯、不线性，非常不符合人的直觉，这就是异步回调影响到我们的编码方式。
 
 那有什么方法可以解决这个问题呢？当然有，我们可以封装这堆凌乱的代码，降低处理异步回调的次数。
+
+## 封装异步代码，让处理流程变得线性
+
+由于我们重点关注的是输入内容（请求信息）和输出内容（回复信息），至于中间的异步请求过程，我们不想在代码里面体现太多，因为这会干扰核心的代码逻辑。整体思路如下图所示：
+
+![封装请求过程](./img/pack-request-process.png)
+
+从图中你可以看到，我们将 XMLHttpRequest 请求过程的代码封装起来了，重点关注输入数据和输出结果。
+
+那我们就按照这个思路来改造代码。首先，我们把输入的 HTTP 请求信息全部保存到一个 request 的结构中，包括请求地址、请求头、请求方式、引用地址、同步请求还是异步请求、安全设置等信息。request 结构如下所示：
+
+```js
+// makeRequest 用来构造 request 对象
+function makeRequest(request_url) {
+  let request = {
+    method: 'Get',
+    url: request_url,
+    headers: '',
+    body: '',
+    credentials: false,
+    sync: true,
+    responseType: 'text',
+    referrer: ''
+  }
+  return request
+}
+```
+
+然后就可以封装请求过程了，这么我们将所有的请求细节封装进 XFetch 函数，XFetch 代码如下所示：
+
+```js
+// [in] request，请求信息，请求头，延时值，返回类型等
+// [out] resolve, 执行成功，回调该函数
+// [out] reject  执行失败，回调该函数
+function XFetch(request, resolve, reject) {
+  let xhr = new XMLHttpRequest()
+  xhr.ontimeout = function(e) { reject(e) }
+  xhr.onerror = function(e) { reject(e) }
+  xhr.onreadystatechange = function() {
+    if(xhr.status = 200) resolve(xhr.response)
+  }
+  xhr.open(request.method, URL, request.sync)
+  xhr.timeout = request.timeout
+  xhr.responseType = request.responseType
+  // 补充其他请求信息
+  // ...
+  xhr.send()
+}
+```
+
+这个 XFetch 函数需要一个 request 作为输入，然后还需要两个回调函数 resolve 和 reject，当请求成功时回调 resolve 函数，当请求出现问题时回调 reject 函数。
+
+有了这些后，我们就可以来实现业务代码了，具体地实现方式如下所示：
+
+```js
+XFetch(makeRequest('https://time.geekbang.org'),
+  function resolve(data) {
+    console.log(data)
+  }, function reject(e) {
+    console.log(e)
+  })
+```
