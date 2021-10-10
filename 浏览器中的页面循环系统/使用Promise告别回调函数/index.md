@@ -110,3 +110,44 @@ XFetch(makeRequest('https://time.geekbang.org'),
     console.log(e)
   })
 ```
+
+## 新的问题：回调地狱
+
+上面的示例代码已经比较符合人的线性思维了，在一些简单的场景下运行效果也是非常好的，不过一旦接触到稍微复杂点的项目时，你就会发现，如果嵌套了太多的回调函数就很容易使得自己陷入了回调地狱，不能自拔。你可以参考下面这段让人凌乱的代码：
+
+```js
+XFetch(makeRequest('https://time.geekbang.org/?category'),
+  function resolve(response) {
+    console.log(response)
+    XFetch(makeRequest('https://time.geekbang.org/column'),
+      function resolve(response) {
+        console.log(response)
+        XFetch(makeRequest('https://time.geekbang.org'),
+          function resolve(response) {
+            console.log(response)
+          }, function reject(e) {
+            console.log(e)
+          })
+      }, function reject(e) {
+        console.log(e)
+      })
+  }, function reject(e) {
+    console.log(e)
+  })
+```
+
+这段代码是先请求 time.geekbang.org/?category，如果请求成功的话，那么再请求 https://time.geekbang.org/column，如果再次请求成功的话，就继续请求 time.geekbang.org。也就是说这段代码用了三层嵌套请求，就已经让代码变得混乱不堪，所以，我们还需要解决这种嵌套调用后混乱的代码结构。
+
+这段代码之所以看上去很乱，归结其原因有两点：
+
+- 第一是嵌套调用，下面的任务依赖上个任务的请求结果，并在上个任务的回调函数内部执行新的业务逻辑，这样当嵌套层次多了之后，代码的可读性就变得非常差了。
+
+- 第二是任务的不确定性，执行每个任务都有两种可能的结果（成功或者失败），所以体现在代码中就需要对每个任务的执行结果做两次判断，这种对每个任务都要进行一次额外的错误处理的方式，明显增加了代码的混乱程度。
+
+原因分析出来后，那么问题的解决思路就很清晰了：
+
+- 第一是消灭嵌套调用。
+
+- 第二是合并多个任务的错误处理。
+
+这么讲可能有点抽象，不过 Promise 已经帮助我们解决了这两个问题。那么接下来我们就来看看 Promise 是怎么消灭嵌套调用和合并多个任务的错误处理的。
