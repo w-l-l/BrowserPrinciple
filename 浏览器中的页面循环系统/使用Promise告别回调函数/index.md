@@ -277,3 +277,89 @@ console.log(2)
 之所以可以使用最后一个对象来捕获所有异常，是因为 Promsie 对象的错误具有“冒泡”性质，会一直向后传递，直到被 onReject 函数处理或 catch 语句捕获为止。具备了这样“冒泡”的特性后，就不需要在每个 Promise 对象中单独捕获异常了。至于 Promsie 错误的“冒泡”性质是怎么实现的，就留给你课后思考了。
 
 通过这种方式，我们就消灭了嵌套调用和频繁的错误处理，这样使得我们写出来的代码更加优雅，更加符合人的线性思维。
+
+## Promise 与微任务
+
+讲了这么多，我们似乎还没有将微任务和 Promise 关联起来，那么 Promise 和微任务的关系到底体现哪里呢？
+
+我们结合下面这个简单的 Promise 代码来回答这个问题：
+
+```js
+function executor(resolve, reject) {
+  resolve(100)
+}
+let demo = new Promise(executor)
+
+function onResolve(value) {
+  console.log(value)
+}
+demo.then(onResolve)
+```
+
+对于上面这段代码，我们需要重点关注下它的执行顺序。
+
+首先执行 new Promise 时，Promise 的构造函数会被执行，不过由于 Promise 是 V8 引擎提供的，所以暂时看不到 Promise 构造函数的细节。
+
+接下来，Promsie 的构造函数会调用 Promise 的参数 executor 函数。然后在 executor 中执行了 resolve，resolve 函数也是在 V8 内部实现的，那么 resolve 函数到底做了什么呢？我们知道，执行 resolve 函数，会触发 demo.then 设置的回调函数 onResolve，所以可以推测，resolve 函数内部调用了通过 demo.then 设置的 onResolve 函数。
+
+不过这里需要注意一下，由于 Promise 采用了回调函数延迟绑定技术，所以在执行 resolve 函数的时候，回调函数还没有绑定，那么只能推迟回调函数的执行。
+
+这样按顺序陈述可能把你绕晕，下面来模拟实现一个 Promise，我们会实现它的构造函数、resolve 方法以及 then 方法，以方便你能清楚 Promsie 的背后都发生了什么。这里我们就把这个对象称为 Bromise，下面就是 Bromise 的实现代码：
+
+```js
+function Bromise(executor) {
+  var onResolve_ = null
+  var onReject_ = null
+  // 模拟实现 resolve 和 then，暂不支持 rejcet
+  this.then = function(onResolve, onReject) {
+    onResolve_ = onResolve
+  }
+  function resolve(value) {
+    //setTimeout(()=>{
+      onResolve_(value)
+    // },0)
+  }
+  executor(resolve, null)
+}
+```
+
+观察上面这段代码，我们实现了自己的构造函数、resolve、then 方法。接下来我们使用 Bromise 来实现我们的业务代码，实现后的代码如下所示：
+
+```js
+function executor(resolve, reject) {
+  resolve(100)
+}
+// 将 Promise 改成我们自己的 Bromsie
+let demo = new Bromise(executor)
+
+function onResolve(value) {
+  console.log(value)
+}
+demo.then(onResolve)
+```
+
+执行这段代码，我们发现执行出错，输出的内容是：
+
+```js
+Uncaught TypeError: onResolve_ is not a function
+  at resolve (<anonymous>:10:13)
+  at executor (<anonymous>:17:5)
+  at new Bromise (<anonymous>:13:5)
+  at <anonymous>:19:12
+```
+
+之所以出现这个错误，是由于 Bromise 的延迟绑定导致的，在调用到 onResolve_ 函数的时候，Bromise.then 还没有执行，所以执行上诉代码的时候，当然会报“onResolve_ is not a function”的错误了。
+
+也正是因为如此，我们要改造 Bromise 中的 resolve 方法，让 resolve 延迟调用 onResolve_。
+
+要让 resolve 中的 onResolve_ 函数延后执行，可以在 resolve 函数里面加上一个定时器，让其延时执行 onResolve_ 函数，你可以参考下面改造后的代码：
+
+```js
+function resolve(value) {
+  setTimeout(() => {
+    onResolve_(value)
+  }, 0)
+}
+```
+
+上面采用了定时器来推迟 onResolve_ 的执行，不过使用定时器的效率并不是太高，好在我们有微任务，所以 Promise 又把这个定时器改造成了微任务了，这样既可以让 onResolve_ 延时被调用，又提升了代码的执行效率。这就是 Promsie 中使用微任务的原由了。
