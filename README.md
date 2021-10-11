@@ -31,3 +31,4 @@
 - [Webapi：setTimeout是怎么实现的](./浏览器中的页面循环系统/Webapi：setTimeout是怎么实现的/index.md)
 - [Webapi：XMLHttpRequest是怎么实现的](./浏览器中的页面循环系统/Webapi：XMLHttpRequest是怎么实现的/index.md)
 - [宏任务和微任务：不是所有的任务都是一个待遇](./浏览器中的页面循环系统/宏任务和微任务：不是所有的任务都是一个待遇/index.md)
+- [使用Promise告别回调函数](./浏览器中的页面循环系统/使用Promise告别回调函数/index.md)
