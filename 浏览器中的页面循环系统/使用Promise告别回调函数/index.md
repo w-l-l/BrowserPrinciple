@@ -151,3 +151,129 @@ XFetch(makeRequest('https://time.geekbang.org/?category'),
 - 第二是合并多个任务的错误处理。
 
 这么讲可能有点抽象，不过 Promise 已经帮助我们解决了这两个问题。那么接下来我们就来看看 Promise 是怎么消灭嵌套调用和合并多个任务的错误处理的。
+
+## Promise：消灭嵌套调用和多次错误处理
+
+首先，我们使用 Promise 来重构 XFetch 的代码，示例代码如下所示：
+
+```js
+function XFetch(request) {
+  function executor(resolve, reject) {
+    let xhr = new XMLHttpRequest()
+    xhr.open('GET', request.url, true)
+    xhr.ontimeout = function(e) { reject(e) }
+    xhr.onerror = function(e) { reject(e) }
+    xhr.onreadystatechange = function() {
+      if(this.readyState === 4) {
+        if(this.status === 200) {
+          resolve(this.responseText, this)
+        } else {
+          let error = {
+            code: this.status,
+            response: this.response
+          }
+          reject(error, this)
+        }
+      }
+    }
+    xhr.send()
+  }
+  return new Promise(executor)
+}
+```
+
+接下来，我们再利用 XFetch 来构造请求流程，代码如下：
+
+```js
+var x1 = XFetch(makeRequest('https://time.geekbang.org/?category'))
+var x2 = x1.then(value => {
+  console.log(value)
+  return XFetch(makeRequest('https://www.geekbang.org/column'))
+})
+var x3 = x2.then(value => {
+  console.log(value)
+  return XFetch(makeRequest('https://time.geekbang.org'))
+})
+x3.catch(error => {
+  console.log(error)
+})
+```
+
+你可以观察上面这两段代码，重点关注下 Promise 的使用方式。
+
+- 首先我们引入了 Promise，在调用 XFetch 时，会返回一个 Promise 对象。
+
+- 构建 Promise 对象时，需要传入一个 executor 函数，XFetch 的主要业务流程都在 executor 函数中执行。
+
+- 如果运行在 executor 函数中的业务执行成功了，会调用 resolve 函数；如果执行失败了，则调用 reject 函数。
+
+- 在 executor 函数中调用 resolve 函数时，会触发 promise.then 设置的回调函数；而调用 reject 函数时，会触发 promise.catch 设置的回调函数。
+
+以上简单介绍了 Promise 一些主要的使用方法，通过引入 Promise，上面这段代码看起来就非常线性了，也非常符合人的直觉，是不是很酷？基于这段代码，我们就可以来分析 Promise 是如何消灭嵌套回调和合并多个错误处理了。
+
+我们先来看看 Promise 是怎么消灭嵌套回调的。产生嵌套函数的一个主要原因是在发起请求时会带上回调函数，这样当任务处理结束之后，下个任务就只能在回调函数中来处理了。
+
+Promsie 主要通过下面两步解决嵌套回调问题的。
+
+**首先，Promise 实现了回调函数的延时绑定**。回调函数的延时绑定在代码上体现就是先创建 Promise 对象 x1，通过 Promsie 的构造函数 executor 来执行业务逻辑；创建好 Promise 对象 x1 之后，再使用 x1.then 来设置回调函数。示范代码如下：
+
+```js
+// 创建 Promise 对象 x1，并在 executor 函数中执行业务逻辑
+function executor(resolve, reject) {
+  resolve(100)
+}
+let x1 = new Promise(executor)
+ 
+// x1 延迟绑定回调函数 onResolve
+function onResolve(value) {
+  console.log(value)
+}
+x1.then(onResolve)
+```
+
+**其次，需要将回调函数 onResolve 的返回值穿透到最外层**。因为我们会根据 onResolve 函数的传入值来决定创建什么类型的 Promise 任务，创建好的 Promise 对象需要返回到最外层，这样就可以摆脱嵌套循环了。你可以先看下面的代码：
+
+![回调函数返回值穿透到最外层](./img/return-back-outer.png)
+
+现在我们知道了 Promise 通过回调函数延迟绑定和回调函数返回值穿透的技术，解决了循环嵌套。
+
+那接下来我们再来看看 Promsie 是怎么处理异常的，你可以回顾上篇文章思考题留的那段代码，我把这段代码也贴在文中了，如下所示：
+
+```js
+function executor(resolve, reject) {
+  let rand = Math.random()
+  console.log(1)
+  console.log(rand)
+  if(rand > 0.5)
+    resolve()
+  else
+    reject()
+}
+var p0 = new Promise(executor)
+
+var p1 = p0.then((value) => {
+  console.log('succeed-1')
+  return new Promise(executor)
+})
+
+var p3 = p1.then((value) => {
+  console.log('succeed-2')
+  return new Promise(executor)
+})
+ 
+var p4 = p3.then((value) => {
+  console.log('succeed-3')
+  return new Promise(executor)
+})
+ 
+p4.catch((error) => {
+  console.log('error')
+})
+console.log(2)
+```
+
+这段代码有四个 Promsie 对象：p0 ~ p4。无论哪个对象里面抛出异常，都可以通过最后一个对象 p4.catch 来捕获异常，通过这种方式可以将所有 Promsie 对象的错误合并到一个函数来处理，这样就解决了每个任务都需要单独处理异常的问题。
+
+之所以可以使用最后一个对象来捕获所有异常，是因为 Promsie 对象的错误具有“冒泡”性质，会一直向后传递，直到被 onReject 函数处理或 catch 语句捕获为止。具备了这样“冒泡”的特性后，就不需要在每个 Promise 对象中单独捕获异常了。至于 Promsie 错误的“冒泡”性质是怎么实现的，就留给你课后思考了。
+
+通过这种方式，我们就消灭了嵌套调用和频繁的错误处理，这样使得我们写出来的代码更加优雅，更加符合人的线性思维。
