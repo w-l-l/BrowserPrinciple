@@ -166,3 +166,85 @@ co(foo())
 ```
 
 通过使用生成器配合执行器，就能实现使用同步的方式写出异步代码了，这样也大大加强了代码的可读性。
+
+## async / await
+
+虽然生成器已经能很好地满足我们的需求了，但是程序员的追求是无止境的，这不又在 ES7 中引入了 async / await，这种方式能够彻底告别执行器和生成器，实现更加直观简洁的代码。其实 async / await 技术背后的秘密就是 Promise 和生成器应用，往底层说就是微任务和协程应用。要搞清楚 async 和 await 的工作原理，我们就得对 async 和 await 分开分析。
+
+### 1.async
+
+我们先来看看 async 到底是什么？根据 MDN 定义，async 是一个通过异步执行并隐式返回 Promise 作为结果的函数。
+
+对 async 函数的理解，这里需要重点关注两个词：异步执行和隐式返回 Promise。
+
+关于异步执行的原因，我们一会儿再分析。这里我们先来看看是如何隐式返回 Promise 的，你可以参考下面的代码：
+
+```js
+async function foo() {
+  return 2
+}
+console.log(foo()) // Promise {<resolved>: 2}
+```
+
+执行这段代码，我们可以看到调用 async 声明的 foo 函数返回了一个 Promise 对象，状态是 resolved，返回的结果如下所示：
+
+```js
+Promise {<resolved>: 2}
+```
+
+### 2.await
+
+我们知道了 async 函数返回的是一个 Promsie 对象，那下面我们再结合文中这段代码来看看 await 到底是什么。
+
+```js
+async function foo() {
+  console.log(1)
+  let a = await 100
+  console.log(a)
+  console.log(2)
+}
+console.log(0)
+foo()
+console.log(3)
+```
+
+观察上面这段代码，你能判断出打印出来的内容是什么吗？这得先来分析 async 结合 await 到底会发生什么。在详细介绍之前，我们先站在协程的视角来看看这段代码的整体执行流程图：
+
+![async/await执行流程图](./img/async-await-execute-process.png)
+
+结合上图，我们来一起分析下 async / await 的执行流程。
+
+首先，执行 console.log(0) 这个语句，打印出来 0。
+
+紧接着就是执行 foo 函数，由于 foo 函数是被 async 标记过的，所以当进入该函数的时候，JavaScript 引擎会保存当前的调用栈等信息，然后执行 foo 函数中的 console.log(1) 语句，并打印出 1。
+
+接下来就执行到 foo 函数中的 await 100 这个语句了，这里是我们分析的重点，因为在执行 await 100 这个语句时，JavaScript 引擎在背后为我们默默做了太多的事情，那么下面我们就把这个语句拆开，来看看 JavaScript 到底都做了哪些事情。
+
+当执行到 await 100 时，会默认创建一个 Promise 对象，代码如下所示：
+
+```js
+let promise_ = new Promise((resolve,reject) => {
+  resolve(100)
+})
+```
+
+在这个 promise_ 对象创建的过程中，我们可以看到在 executor 函数中调用了 resolve 函数，JavaScript 引擎会将该任务提交给微任务队列（上一篇文章中我们讲解过）。
+
+然后 JavaScript 引擎会暂停当前协程的执行，将主线程的控制权转交给父协程执行，同时会将 promise_ 对象返回给父协程。
+
+主线程的控制权已经交给父协程了，这时候父协程要做的一件事是调用 promise_.then 来监控 promise 状态的改变。
+
+接下来继续执行父协程的流程，这里我们执行 console.log(3)，并打印出来 3。随后父协程将执行结束，在结束之前，会进入微任务的检查点，然后执行微任务队列，微任务队列中有 resolve(100) 的任务等待执行，执行到这里的时候，会触发 promise_.then 中的回调函数，如下所示：
+
+```js
+promise_.then((value) => {
+  // 回调函数被激活后
+  // 将主线程控制权交给 foo 协程，并将 vaule 值传给协程
+})
+```
+
+该回调函数被激活以后，会将主线程的控制权交给 foo 函数的协程，并同时将 value 值传给该协程。
+
+foo 协程激活之后，会把刚才的 value 值赋给变量 a，然后 foo 协程继续执行后续语句，执行完成之后，将控制权归还给父协程。
+
+以上就是 `async / await` 的执行流程。正是因为 async 和 await 在背后为我们做了大量的工作，所以我们才能用同步的方式写出异步代码来。
