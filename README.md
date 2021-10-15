@@ -37,3 +37,4 @@
 ## 浏览器中的页面
 
 - [页面性能分析：利用chrome做web性能分析](./浏览器中的页面/页面性能分析：利用chrome做web性能分析/index.md)
+- [DOM树：JavaScript是如何影响DOM树构建的](./浏览器中的页面/DOM树：JavaScript是如何影响DOM树构建的/index.md)
