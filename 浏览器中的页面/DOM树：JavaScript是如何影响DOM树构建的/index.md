@@ -15,3 +15,76 @@
 - 从安全视角来看，DOM 是一道安全防护线，一些不安全的内容在 DOM 解析阶段就被拒之门外了。
 
 简言之，DOM 是表述 HTML 的内部数据结构，它会将 Web 页面和 JavaScript 脚本连接起来，并过滤一些不安全的内容。
+
+## DOM 树如何生成
+
+在渲染引擎内部，有一个叫 HTML 解析器（HTMLParser）的模块，它的职责就是负责将 HTML 字节流转换为 DOM 结构。所以这里我们需要先搞清楚 HTML 解析器是怎么工作的。
+
+在开始介绍 HTML 解析器之前，我要先解释一个大家在留言区问到好几次的问题：HTML 解析器是等整个 HTML 文档加载完成之后开始解析的，还是随着 HTML 文档边加载边解析的？
+
+在这里我统一解答下，HTML 解析器并不是等整个文档加载完成之后再解析的，而是网络进程加载了多少数据，HTML 解析器便解析多少数据。
+
+那详细的流程是怎样的呢？网络进程接收到响应头之后，会根据响应头的 content-type 字段来判断文件的类型，比如 content-type 的值是“text/html”，那么浏览器就会判断这是一个 HTML 类型的文件，然后为请求选择或者创建一个渲染进程。渲染进程准备好之后，网络进程和渲染进程之后会建立一个共享数据的管道，网络进程接收到数据后就往这个管道里面放，而渲染进程则从管道的另一端不断地读取数据，并同时将读取的数据“喂”给 HTML 解析器。你可以把这个管道想象成一个“水管”，网络进程接收到的字节流像水一样倒进这个“水管”，而“水管”的另外一端是渲染进程的 HTML 解析器，它会动态接收字节流，并将其解析为 DOM。
+
+解答完这个问题之后，接下来我们就可以来详细聊聊 DOM 的具体生成过程了。
+
+前面我们说过代码从网络传输过来是字节流的形式，那么后续字节流是如何转换为 DOM 的呢？你可以参考下图：
+
+![字节流转换为DOM](./img/byte-transform-dom.png)
+
+从图中你可以看出，字节流转化为 DOM 需要三个阶段。
+
+**第一个阶段，通过分词器将字节流转换为 Token**。
+
+前面《14 | 编译器和解释器：V8 是如何执行一段 JavaScript 代码的？》文章中我们介绍过，V8 编译 JavaScript 过程中的第一步是做词法分析，将 JavaScript 先分解为一个个 Token。解析 HTML 也是一样的，需要通过分词器先将字节流转换为一个个 Token，分为 Tag Token 和文本 Token。上述 HTML 代码通过词法分析生成的 Token 如下所示：
+
+![生成的Token示意图](./img/token-sketch.png)
+
+由图可以看出，Tag Token 又分 StartTag 和 EndTag，分别对应图中的蓝色和红色块，文本 Token 对应的绿色块。
+
+**至于后续的第二个和第三个阶段是同步进行的，需要将 Token 解析为 DOM 节点，并将 DOM 节点添加到 DOM 树中**。
+
+> HTML 解析器维护了一个 Token 栈结构，该 Token 栈主要用来计算节点之间的父子关系，在第一个阶段中生成的 Token 会被按照顺序压到整个栈中。具体的处理规则如下所示：
+
+- 如果压入到栈中的是 StartTag Token，HTML 解析器会为该 Token 创建一个 DOM 节点，然后将该节点加入到 DOM 树中，它的父节点就是栈中相邻的那个元素生成的节点。
+
+- 如果分词器解析出来的是文本 Token，那么会生成一个文本节点，然后将该节点加入到 DOM 树中，文本 Token 是不需要压入到栈中，它的父节点就是当前栈顶 Token 所对应的 DOM 节点。
+
+- 如果分词器解析出来的是 EndTag 标签，比如 EndTag div，HTML 解析器会查看 Token 栈顶的元素是否是 StartTag div，如果是，就将 StartTag div 从栈中弹出，表示该 div 元素解析完成。
+
+通过分词器产生的新 Token 就这样不停地压栈和出栈，整个解析过程就这样一直持续下去，直到分词器将所有字节流分词完成。
+
+为了更加直观地理解整个过程，下面我们结合一段 HTML 代码（如下），来一步步分析 DOM 树的生成过程。
+
+```html
+<html>
+  <body>
+    <div>1</div>
+    <div>test</div>
+  </body>
+</html>
+```
+
+这段代码以字节流的形式传给了 HTML 解析器，经过分词器处理，解析出来的第一个 Token 是 StartTag html，解析出来的 Token 会被压入到栈中，并同时创建一个 html 的 DOM 节点，将其加入到 DOM 树中。
+
+这里需要补充说明下，HTML 解析器开始工作时，会默认创建一个根为 document 的空 DOM 结构，同时会将一个 StartTag document 的 Token 压入栈底。然后经过分词器解析出来的第一个 StartTag html Token 会被压入到栈中，并创建一个 html 的 DOM 节点，添加到 document 上，如下图所示：
+
+![解析到StartTag html时的标签](./img/parse-html-status.png)
+
+然后按照同样的流程解析出来 StartTag body 和 StartTag div，其 Token 栈和 DOM 的状态如下图所示：
+
+![解析到StartTag div时的标签](./img/parse-div-status.png)
+
+接下来解析出来的是第一个 div 的文本 Token，渲染引擎会为该 Token 创建一个文本节点，并将该 Token 添加到 DOM 中，它的父节点就是当前 Token 栈顶元素对应的节点，如下图所示：
+
+![解析出第一个文本Token时的状态](./img/parse-text-status.png)
+
+再接下来，分词器解析出来第一个 EndTag div，这时候 HTML 解析器会去判断当前栈顶的元素是否是 StartTag div，如果是则从栈顶弹出 StartTag div，如下图所示：
+
+![元素弹出Token示意图](./img/popup-token-sketch.png)
+
+按照同样的规则，一路解析，最终结果如下图所示：
+
+![最终解析结果](./img/last-parse-result.png)
+
+通过上面的介绍，相信你已经清楚 DOM 是怎么生成的了。不过在实际生产环境中，HTML 源文件中既包含 CSS 和 JavaScript，又包含图片、音频、视频等文件，所以处理过程远比上面这个示范 Demo复杂。不过理解了这个简单的 Demo 生成过程，我们就可以往下分析更加复杂的场景了。
