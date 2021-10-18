@@ -45,3 +45,141 @@
 - 如何减少关键资源 RTT 的次数？可以通过减少关键资源的个数和减少关键资源的大小搭配来实现。除此之外，还可以使用 CDN 来减少每次 RTT 时长。
 
 在优化实际的页面加载速度时，你可以先画出优化之前关键资源的图表，然后按照上面优化关键资源的原则去优化，优化完成之后再画出优化之后的关键资源图表。
+
+## 交互阶段
+
+接下来我们再来聊聊页面加载完成之后的交互阶段以及应该如何去优化。谈交互阶段的优化，其实就是在谈渲染进程渲染帧的速度，因为在交互阶段，帧的渲染速度决定了交互的流畅度。因此讨论页面优化实际上就是讨论渲染引擎是如何渲染帧的，否则就无法优化帧率。
+
+我们先来看看交互阶段的渲染流水线（如下图）。和加载阶段的渲染流水线有一些不同的地方是，在交互阶段没有了加载关键资源和构建 DOM、CSSOM 流程，通常是由 JavaScript 触发交互动画的。
+
+![交互阶段渲染流水线](./img/interaction-stage-render-process.png)
+
+结合上图，我们来一起回顾下交互阶段是如何生成一个帧的。大部分情况下，生成一个新的帧都是由 JavaScript 通过修改 DOM 或者 CSSOM 来触发的。还有另外一部分帧是由 CSS 来触发的。
+
+如果在计算样式阶段发现有布局信息的修改，那么就会触发重排操作，然后触发后续渲染流水线的一系列操作，这个代价是非常大的。
+
+同样如果在计算样式阶段没有发现有布局信息的修改，只是修改了颜色一类的信息，那么就不会涉及到布局相关的调整，所以可以跳过布局阶段，直接进入绘制阶段，这个过程叫重绘。不过重绘阶段的代价也是不小的。
+
+还有另外一种情况，通过 CSS 实现一些变形、渐变、动画等特效，这是由 CSS 触发的，并且是在合成线程上执行的，这个过程称为合成。因为它不会触发重排或者重绘，而且合成操作本身的速度就非常快，所以执行合成是效率最高的方式。
+
+回顾了在交互过程中的帧是如何生成的，那接下来我们就可以讨论优化方案了。一个大的原则就是让单个帧的生成速度变快。所以，下面我们就来分析下在交互阶段渲染流水线中有哪些因素影响了帧的生成速度以及如何去优化。
+
+### 1.减少 JavaScript 脚本执行时间
+
+有时 JavaScript 函数的一次执行时间可能有几百毫秒，这就严重霸占了主线程执行其他渲染任务的时间。针对这种情况我们可以采用以下两种策略。
+
+- 一种是将一次执行的函数分解为多个任务，使得每次的执行时间不要过久。
+
+- 另一种是采用 Web Workers。你可以把 Web Workers 当作主线程之外的一个线程，在 Web Workers 中是可以执行 JavaScript 脚本的，不过 Web Workers 中没有 DOM、CSSOM 环境，这意味着在 Web Workers 中是无法通过 JavaScript 来访问 DOM 的，所以我们可以把一些和 DOM 操作无关且耗时的任务放到 Web Workers 中去执行。
+
+总之，在交互阶段，对 JavaScript 脚本总的原则就是不要一次霸占太久主线程。
+
+### 避免强制同步布局
+
+在介绍强制同步布局之前，我们先来聊聊正常情况下的布局操作。通过 DOM 接口执行添加元素或者删除元素等操作后，是需要重新计算样式和布局的，不过正常情况下这些操作都是在另外的任务中异步完成的，这样做是为了避免当前的任务占用太长的主线程时间。为了直观理解，你可以参考下面的代码：
+
+```html
+<html>
+  <body>
+    <div id="mian_div">
+      <li id="time_li">time</li>
+      <li>geekbang</li>
+    </div>
+
+    <p id="demo">强制布局 demo</p>
+    <button onclick="foo()">添加新元素</button>
+
+    <script>
+      function foo() {
+        let main_div = document.getElementById('mian_div')      
+        let new_node = document.createElement('li')
+        let textnode = document.createTextNode('time.geekbang')
+        new_node.appendChild(textnode)
+        document.getElementById('mian_div').appendChild(new_node)
+      }
+    </script>
+  </body>
+</html>
+```
+
+对于上面这段代码，我们可以使用 Performance 工具来记录添加元素的过程，如下图所示：
+
+![performance记录添加元素的执行过程](./img/performance-log-process.png)
+
+从图中可以看出来，执行 JavaScript 添加元素是在一个任务中执行的，重新计算样式布局是在另外一个任务中执行，这就是正常情况下的布局操作。
+
+理解了正常情况下的布局操作，接下来我们就可以聊什么是强制同步布局了。
+
+所谓强制同步布局，是指 JavaScript 强制将计算样式和布局操作提前到当前的任务中。为了直观理解，这里我们对上面的代码做了一点修改，让它变成强制同步布局，修改后的代码如下所示：
+
+```js
+function foo() {
+  let main_div = document.getElementById('mian_div')
+  let new_node = document.createElement('li')
+  let textnode = document.createTextNode('time.geekbang')
+  new_node.appendChild(textnode)
+  document.getElementById('mian_div').appendChild(new_node)
+  // 由于要获取到 offsetHeight，
+  // 但是此时的 offsetHeight 还是老的数据，
+  // 所以需要立即执行布局操作
+  console.log(main_div.offsetHeight)
+}
+```
+
+将新的元素添加到 DOM 之后，我们又调用了 main_div.offsetHeight 来获取新 main_div 的高度信息。如果要获取到 main_div 的高度，就需要重新布局，所以这里在获取到 main_div 的高度之前，JavaScript 还需要强制让渲染引擎默认执行一次布局操作。我们把这个操作称为强制同步布局。
+
+同样，你可以看下面通过 Performance 记录的任务状态：
+
+![触发强制同步布局performance图](./img/recalculate-style-performance.png)
+
+从上图可以看出来，计算样式和布局都是在当前脚本执行过程中触发的，这就是强制同步布局。
+
+为了避免强制同步布局，我们可以调整策略，在修改 DOM 之前查询相关值。代码如下所示：
+
+```js
+function foo() {
+  let main_div = document.getElementById('mian_div')
+  // 为了避免强制同步布局，在修改 DOM 之前查询相关值
+  console.log(main_div.offsetHeight)
+  let new_node = document.createElement('li')
+  let textnode = document.createTextNode('time.geekbang')
+  new_node.appendChild(textnode)
+  document.getElementById('mian_div').appendChild(new_node)
+}
+```
+
+### 3.避免布局抖动
+
+还有一种比强制同步布局更坏的情况，那就是布局抖动。所谓布局抖动，是指在一次 JavaScript 执行过程中，多次执行强制布局和抖动操作。为了直观理解，你可以看下面的代码：
+
+```js
+function foo() {
+  let time_li = document.getElementById('time_li')
+  for (let i = 0; i < 100; i++) {
+    let main_div = document.getElementById('mian_div')
+    let new_node = document.createElement('li')
+    let textnode = document.createTextNode('time.geekbang')
+    new_node.appendChild(textnode)
+    new_node.offsetHeight = time_li.offsetHeight
+    document.getElementById('mian_div').appendChild(new_node)
+  }
+}
+```
+
+我们在一个 for 循环语句里面不断读取属性值，每次读取属性值之前都要进行计算样式和布局。执行代码之后，使用 Performance 记录的状态如下所示：
+
+![performance中关于布局抖动的表现](./img/layout-shake-performance.png)
+
+从上图可以看出，在 foo 函数内部重复执行计算样式和布局，这会大大影响当前函数的执行效率。这种情况的避免方式和强制同步布局一样，都是尽量不要在修改 DOM 结构时再去查询一些相关值。
+
+### 4.合理利用 CSS 合成动画
+
+合成动画是直接在合成线程上执行的，这和在主线程上执行的布局、绘制等操作不同，如果主线程被 JavaScript 或者一些布局任务占用，CSS 动画依然能继续执行。所以要尽量利用好 CSS 合成动画，如果能让 CSS 处理动画，就尽量交给 CSS 来操作。
+
+另外，如果能提前知道对某个元素执行动画操作，那就最好将其标记为 will-change，这是告诉渲染引擎需要将该元素单独生成一个图层。
+
+### 5.避免频繁的垃圾回收
+
+我们知道 JavaScript 使用了自动垃圾回收机制，如果在一些函数中频繁创建临时对象，那么垃圾回收器也会频繁地去执行垃圾回收策略。这样当垃圾回收操作发生时，就会占用主线程，从而影响到其他任务的执行，严重的话还会让用户产生掉帧、不流畅的感觉。
+
+所以要尽量避免产生那些临时垃圾数据。那该怎么做呢？可以尽可能优化储存结构，尽可能避免小颗粒对象的产生。
