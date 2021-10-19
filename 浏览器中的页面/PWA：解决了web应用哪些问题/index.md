@@ -25,3 +25,15 @@ PWA，全称 Progressive Web App，翻译过来就是渐进式网页应用。根
 - 最后，Web 应用缺少一级入口，也就是将 Web 应用安装到桌面，在需要的时候直接从桌面打开 Web 应用，而不是每次都需要通过浏览器来打开。
 
 针对以上 Web 缺陷，PWA 提出了两种解决方案：通过引入 Service Worker 来试着解决离线存储和消息推送的问题，通过引入 manifest.json 来解决一级入口的问题。下面我们就来详细分析下 Service Worker 是如何工作的。
+
+## 什么是 Service Worker
+
+我们先来看看 Service Worker 是怎么解决离线存储和消息推送的问题。
+
+其实在 Service Worker 之前，WHATWG 小组就推出过用 App Cache 标准来缓存页面，不过在使用过程中 App Cache 所暴露的问题比较多，遭到了多方吐槽，所以这个标准最终也只能被废弃了，可见一个成功的标准是需要经历实践考量的。
+
+所以在 2014 年的时候，标准委员会提出了 Service Worker 的概念，它的主要思想是在页面和网络之间增加一个拦截器，用来缓存和拦截请求。整体结构如下图所示：
+
+![Service Worker结构示意图](./img/service-worker-structure-sketch.png)
+
+在没有安装 Service Worker 之前，WebApp 都是直接通过网络模块来请求资源的。安装了 Service Worker 模块之后，WebApp 请求资源时，会先通过 Service Worker，让它判断是返回 Service Worker 缓存的资源还是重新去网络请求资源。一切的控制权都交由 Service Worker 来处理。
