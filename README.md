@@ -42,3 +42,4 @@
 - [分层和合成机制：为什么CSS动画比JavaScript高效](./浏览器中的页面/分层和合成机制：为什么CSS动画比JavaScript高效/index.md)
 - [页面性能：如何系统优化页面](./浏览器中的页面/页面性能：如何系统优化页面/index.md)
 - [虚拟DOM：虚拟DOM和实际DOM有何不同](./浏览器中的页面/虚拟DOM：虚拟DOM和实际DOM有何不同/index.md)
+- [PWA：解决了web应用哪些问题](./浏览器中的页面/PWA：解决了web应用哪些问题/index.md)
