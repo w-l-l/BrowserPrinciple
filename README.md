@@ -51,3 +51,4 @@
 - [HTTP2：如何提升网络速度](./浏览器中的网络/HTTP2：如何提升网络速度/index.md)
 - [HTTP3：甩掉TCP、TCL包袱，构建高效网络](./浏览器中的网络/HTTP3：甩掉TCP、TCL包袱，构建高效网络/index.md)
 - [同源策略：为什么XMLHttpRequest不能跨域请求资源](./浏览器中的网络/同源策略：为什么XMLHttpRequest不能跨域请求资源/index.md)
+- [跨站脚本攻击XSS：为什么cookie中有httpOnly属性](./浏览器中的网络/跨站脚本攻击XSS：为什么cookie中有httpOnly属性/index.md)
